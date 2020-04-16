@@ -5,6 +5,10 @@
 //! For example, assume the return value is SuffixArray sa for the input xs. Then, if sa[12] = 34, the rank of the suffix xs[34..] is 12.
 //! Quite easy, huh?
 use std::cmp::Ord;
+/// A suffix array. The memory footprint is O(nlogn) in theory.
+/// However, for implementation simplicity, we employ `usize` to
+/// record the starting position of a suffix for a given rank.
+/// Thus, `sizeof(usize)*n` memory is needed, where n is the length of the input.
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize, Default)]
 pub struct SuffixArray<T: Ord + Clone + Eq> {
     inner: Vec<usize>,
@@ -28,6 +32,20 @@ impl<T: Clone + Ord + Eq> SuffixArray<T> {
             })
             .ok()
             .map(|e| self.inner[e])
+    }
+    pub fn enumerate_matches(&self, input: &[T], query: &[T]) -> Option<&[usize]> {
+        let max = input.len();
+        let get_suf = |index: usize| {
+            let suf_start = self.inner[index];
+            let suf_end = (suf_start + query.len()).min(max);
+            &input[suf_start..suf_end]
+        };
+        let compare = |index: usize| {
+            let suffix = get_suf(index);
+            suffix.cmp(query)
+        };
+        let (start, end) = binary_search_by(0, self.inner.len() - 1, compare)?;
+        Some(&self.inner[start..end + 1])
     }
     pub fn new(input: &[T], alphabet: &[T]) -> Self {
         // Renaming input into alphabetically order.
@@ -261,6 +279,47 @@ impl<T: Clone + Ord + Eq> SuffixArray<T> {
         (is_large, is_lms)
     }
 }
+fn binary_search_by<F: Fn(usize) -> std::cmp::Ordering>(
+    start: usize,
+    end: usize,
+    compare: F,
+) -> Option<(usize, usize)> {
+    // First get the start location
+    let start = if compare(start) == std::cmp::Ordering::Equal {
+        start
+    } else {
+        let (mut start, mut end) = (start, end);
+        while end - start > 1 {
+            let center = (start + end) / 2;
+            match compare(center) {
+                std::cmp::Ordering::Less => start = center,
+                _ => end = center,
+            }
+        }
+        match compare(end) {
+            std::cmp::Ordering::Equal => end,
+            _ => return None,
+        }
+    };
+    // Similary determine the end location.
+    let end = if compare(end) == std::cmp::Ordering::Equal {
+        end
+    } else {
+        let (mut start, mut end) = (start, end);
+        while end - start > 1 {
+            let center = (start + end) / 2;
+            match compare(center) {
+                std::cmp::Ordering::Greater => end = center,
+                _ => start = center,
+            }
+        }
+        match compare(start) {
+            std::cmp::Ordering::Equal => start,
+            _ => return None,
+        }
+    };
+    Some((start, end))
+}
 
 #[cfg(test)]
 mod test {
@@ -302,5 +361,58 @@ mod test {
         assert_eq!(result.search(input, query), None);
         let query = b"CCCCCC";
         assert_eq!(result.search(input, query), None);
+    }
+    #[test]
+    fn binary_search_test() {
+        let array = [1, 3, 8, 13, 13, 14, 18, 19, 25];
+        let res = binary_search_by(0, array.len() - 1, |idx| array[idx].cmp(&3));
+        assert_eq!(res, Some((1, 1)));
+        let res = binary_search_by(0, array.len() - 1, |idx| array[idx].cmp(&13));
+        assert_eq!(res, Some((3, 4)));
+        let res = binary_search_by(0, array.len() - 1, |idx| array[idx].cmp(&0));
+        assert_eq!(res, None);
+        let res = binary_search_by(0, array.len() - 1, |idx| array[idx].cmp(&26));
+        assert_eq!(res, None);
+        let array = [1, 1, 1, 1, 1];
+        let res = binary_search_by(0, array.len() - 1, |idx| array[idx].cmp(&3));
+        assert_eq!(res, None);
+        let res = binary_search_by(0, array.len() - 1, |idx| array[idx].cmp(&0));
+        assert_eq!(res, None);
+        let res = binary_search_by(0, array.len() - 1, |idx| array[idx].cmp(&1));
+        assert_eq!(res, Some((0, 4)));
+    }
+    #[test]
+    fn suffix_array_enumerate_search() {
+        let input = b"GTCCCGATGTCATGTCAGGA";
+        let alphabet = b"ACGT";
+        let result = SuffixArray::new(input, alphabet);
+        let query = b"GTCCC";
+        assert_eq!(result.enumerate_matches(input, query).unwrap(), &[0]);
+        let query = b"CCCGATGTCATGTCAGGA";
+        assert_eq!(result.enumerate_matches(input, query).unwrap(), &[2]);
+        let query = b"CCCGATGTCTGTCAGGA";
+        assert_eq!(result.enumerate_matches(input, query), None);
+        let query = b"CCCCCC";
+        assert_eq!(result.enumerate_matches(input, query), None);
+        let input = b"GAAAGAAAGAAAGAA";
+        let result = SuffixArray::new(input, alphabet);
+        let query = b"GAAA";
+        let mut res = result.enumerate_matches(input, query).unwrap().to_vec();
+        res.sort();
+        assert_eq!(res, vec![0, 4, 8]);
+        let query = b"AAA";
+        let mut res = result.enumerate_matches(input, query).unwrap().to_vec();
+        res.sort();
+        assert_eq!(res, vec![1, 5, 9]);
+        let input = b"AAAAAAA";
+        let result = SuffixArray::new(input, alphabet);
+        let query = b"AAA";
+        let mut res = result.enumerate_matches(input, query).unwrap().to_vec();
+        res.sort();
+        assert_eq!(res, vec![0, 1, 2, 3, 4]);
+        let query = b"A";
+        let mut res = result.enumerate_matches(input, query).unwrap().to_vec();
+        res.sort();
+        assert_eq!(res, vec![0, 1, 2, 3, 4, 5, 6]);
     }
 }
