@@ -46,3 +46,33 @@ fn naive_check(b: &mut Bencher) {
         )
     });
 }
+
+#[bench]
+fn suffix_array_check(b: &mut Bencher) {
+    let (reference, queries) = dataset(SEED, TEMPLATE_LEN, TEST_NUM, MAX_LEN);
+    use suffix_utils::suffix_array::SuffixArray;
+    let alphabet: Vec<u8> = (0..=std::u8::MAX).collect();
+    let sa = SuffixArray::new_naive(&reference, &alphabet);
+    b.iter(|| {
+        test::bench::black_box(
+            queries
+                .iter()
+                .filter(|query| sa.search(&reference, query).is_some())
+                .count(),
+        )
+    });
+}
+
+#[test]
+fn random_check() {
+    let (reference, queries) = dataset(SEED, TEMPLATE_LEN, TEST_NUM, MAX_LEN);
+    use suffix_utils::suffix_array::SuffixArray;
+    let alphabet: Vec<u8> = (0..=std::u8::MAX).collect();
+    let sa = SuffixArray::new_naive(&reference, &alphabet);
+    for query in queries {
+        let have = reference
+            .windows(query.len())
+            .any(|w| w == query.as_slice());
+        assert_eq!(have, sa.search(&reference, &query).is_some());
+    }
+}
