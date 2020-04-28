@@ -85,3 +85,41 @@ fn random_check_lcp() {
         }
     }
 }
+
+#[test]
+fn random_check_suffix_tree() {
+    for i in 0..2 {
+        let (reference, _queries) = dataset(SEED + i as u64, TEMPLATE_LEN, TEST_NUM, MAX_LEN);
+        use suffix_utils::suffix_tree::SuffixTree;
+        let alphabet: Vec<u8> = (0..=std::u8::MAX).collect();
+        let st = SuffixTree::new(&reference, &alphabet);
+        let mut stack = vec![];
+        stack.push(st.root_idx);
+        let mut suffix = vec![];
+        let mut arrived = vec![false; st.nodes.len()];
+        let mut input = reference.to_vec();
+        input.push(b'$');
+        'dfs: while !stack.is_empty() {
+            let node = *stack.last().unwrap();
+            if !arrived[node] {
+                arrived[node] = true;
+            }
+            for &(idx, _, _) in st.nodes[node].children.iter() {
+                if !arrived[idx] {
+                    let position = st.nodes[idx].position_at_text;
+                    let length = st.nodes[idx].label_length_to_parent;
+                    suffix.extend(input[position - length..position].iter().copied());
+                    stack.push(idx);
+                    continue 'dfs;
+                }
+            }
+            let last = stack.pop().unwrap();
+            if let Some(idx) = st.nodes[last].leaf_label {
+                assert_eq!(suffix.as_slice(), &input[idx..]);
+            }
+            for _ in 0..st.nodes[last].label_length_to_parent {
+                suffix.pop();
+            }
+        }
+    }
+}

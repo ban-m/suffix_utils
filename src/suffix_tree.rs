@@ -4,19 +4,19 @@ use super::suffix_array;
 use super::suffix_array::SuffixArray;
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize, Default)]
 pub struct SuffixTree<T: Ord + Clone + Eq> {
-    root_idx: usize,
-    nodes: Vec<Node>,
+    pub root_idx: usize,
+    pub nodes: Vec<Node>,
     resource_type: std::marker::PhantomData<T>,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize, Default)]
 pub struct Node {
-    parent: Option<usize>,
-    label_length_to_parent: usize,
+    pub parent: Option<usize>,
+    pub label_length_to_parent: usize,
     // (node index, label length, the first character of the label)
-    children: Vec<(usize, usize, u64)>,
-    position_at_text: usize,
-    leaf_label: Option<usize>,
+    pub children: Vec<(usize, usize, u64)>,
+    pub position_at_text: usize,
+    pub leaf_label: Option<usize>,
 }
 
 impl Node {
@@ -138,6 +138,33 @@ mod test {
             eprintln!("{:2}\t{}", rank, String::from_utf8_lossy(&input[idx..]));
         }
         let st = SuffixTree::new(input, alphabet);
-        
+        let mut stack = vec![];
+        stack.push(st.root_idx);
+        let mut suffix = vec![];
+        let mut arrived = vec![false; st.nodes.len()];
+        let mut input = input.to_vec();
+        input.push(b'$');
+        'dfs: while !stack.is_empty() {
+            let node = *stack.last().unwrap();
+            if !arrived[node] {
+                arrived[node] = true;
+            }
+            for &(idx, _, _) in st.nodes[node].children.iter() {
+                if !arrived[idx] {
+                    let position = st.nodes[idx].position_at_text;
+                    let length = st.nodes[idx].label_length_to_parent;
+                    suffix.extend(input[position - length..position].iter().copied());
+                    stack.push(idx);
+                    continue 'dfs;
+                }
+            }
+            let last = stack.pop().unwrap();
+            if let Some(idx) = st.nodes[last].leaf_label {
+                assert_eq!(suffix.as_slice(), &input[idx..]);
+            }
+            for _ in 0..st.nodes[last].label_length_to_parent {
+                suffix.pop();
+            }
+        }
     }
 }
