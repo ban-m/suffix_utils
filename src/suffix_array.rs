@@ -21,7 +21,22 @@ impl<T: Clone + Ord + Eq> std::convert::AsRef<[usize]> for SuffixArray<T> {
     }
 }
 
+impl<T: Ord + Clone + Eq> std::ops::Index<usize> for SuffixArray<T> {
+    type Output = usize;
+    fn index(&self, index: usize) -> &Self::Output {
+        &self.inner.index(index)
+    }
+}
+
 impl<T: Clone + Ord + Eq> SuffixArray<T> {
+    /// Return Inverse Suffix Array of `self`.
+    pub fn inverse(&self) -> Vec<usize> {
+        let mut isa = vec![0; self.inner.len()];
+        for (rank, &idx) in self.inner.iter().enumerate() {
+            isa[idx] = rank;
+        }
+        isa
+    }
     pub fn search(&self, input: &[T], query: &[T]) -> Option<usize> {
         let max = input.len();
         self.inner
@@ -93,7 +108,6 @@ impl<T: Clone + Ord + Eq> SuffixArray<T> {
     fn induced_sorting(input: Vec<u64>, alphabet_size: usize) -> Vec<usize> {
         let lms_position = Self::first_induce(&input, alphabet_size);
         let sa_of_lms = Self::construct_sa_of_lms(&lms_position, &input);
-        eprintln!("{:?}", sa_of_lms);
         Self::second_induce(&input, alphabet_size, &sa_of_lms)
     }
     fn first_induce(input: &[u64], alphabet_size: usize) -> Vec<(usize, usize)> {
@@ -321,6 +335,28 @@ fn binary_search_by<F: Fn(usize) -> std::cmp::Ordering>(
     Some((start, end))
 }
 
+/// Return LCP array in O(n).
+pub fn longest_common_prefix<T: Ord + Clone + Eq>(
+    input: &[T],
+    sa: &SuffixArray<T>,
+    isa: &[usize],
+) -> Vec<usize> {
+    // Fill longest common prefix from input[0] to input.last().
+    // lcp[i] = longest common prefix between input[sa[i]..] and input[sa[i-1]..]
+    let mut lcp = vec![0; sa.as_ref().len()];
+    let mut l = 0;
+    for i in 0..input.len() {
+        let x = &input[i..];
+        let y = &input[sa[isa[i] - 1]..];
+        while l < x.len().min(y.len()) && x[l] == y[l] {
+            l += 1;
+        }
+        lcp[isa[i]] = l;
+        l = l.max(1) - 1;
+    }
+    lcp
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -414,5 +450,45 @@ mod test {
         let mut res = result.enumerate_matches(input, query).unwrap().to_vec();
         res.sort();
         assert_eq!(res, vec![0, 1, 2, 3, 4, 5, 6]);
+    }
+    /// Return LCP array in O(n).
+    pub fn longest_common_prefix<T: Ord + Clone + Eq>(
+        input: &[T],
+        sa: &SuffixArray<T>,
+        isa: &[usize],
+    ) -> Vec<usize> {
+        // Fill longest common prefix from input[0] to input.last().
+        // lcp[i] = longest common prefix between input[sa[i]..] and input[sa[i-1]..]
+        let mut lcp = vec![0; sa.as_ref().len()];
+        let mut l = 0;
+        for i in 0..input.len() {
+            let x = &input[i..];
+            let y = &input[sa[isa[i] - 1]..];
+            while l < x.len().min(y.len()) && x[l] == y[l] {
+                l += 1;
+            }
+            lcp[isa[i]] = l;
+            l = l.max(1) - 1;
+        }
+        lcp
+    }
+    #[test]
+    fn lcp_check() {
+        let input = b"CAGTAGCTGACTGATCAGTC";
+        let alphabet = b"ACGT";
+        let sa: SuffixArray<u8> = SuffixArray::new(input, alphabet);
+        let isa = sa.inverse();
+        let lcp = longest_common_prefix(input, &sa, &isa);
+        for i in 2..lcp.len() {
+            let x = &input[sa[i - 1]..sa[i - 1] + lcp[i]];
+            let y = &input[sa[i]..sa[i] + lcp[i]];
+            assert_eq!(x, y);
+            let l = lcp[i];
+            assert!(
+                sa[i] + l >= input.len()
+                    || sa[i - 1] + l >= input.len()
+                    || input[sa[i] + l] != input[sa[i - 1] + l]
+            )
+        }
     }
 }
