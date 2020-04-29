@@ -2,8 +2,9 @@
 //! # Overview
 use super::suffix_array;
 use super::suffix_array::SuffixArray;
+use std::fmt::Debug;
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize, Default)]
-pub struct SuffixTree<T: Ord + Clone + Eq> {
+pub struct SuffixTree<T: Ord + Clone + Eq + Debug> {
     pub root_idx: usize,
     pub nodes: Vec<Node>,
     resource_type: std::marker::PhantomData<T>,
@@ -16,6 +17,7 @@ pub struct Node {
     // (node index, label length, the first character of the label)
     pub children: Vec<(usize, usize, u64)>,
     pub position_at_text: usize,
+    // Leaf label. The position of the suffix.
     pub leaf_label: Option<usize>,
 }
 
@@ -48,7 +50,7 @@ impl Node {
     }
 }
 
-impl<T: Ord + Clone + Eq> SuffixTree<T> {
+impl<T: Ord + Clone + Eq + Debug> SuffixTree<T> {
     pub fn new(input: &[T], alphabet: &[T]) -> Self {
         let suffix_array = SuffixArray::new(input, alphabet);
         let inverse_suffix_array = suffix_array.inverse();
@@ -123,6 +125,61 @@ impl<T: Ord + Clone + Eq> SuffixTree<T> {
             resource_type: std::marker::PhantomData,
         }
     }
+    pub fn maximul_repeat(&self, input: &[T]) -> Vec<(Vec<usize>, usize)> {
+        let mut depth = vec![0; self.nodes.len()];
+        let mut leaves_under_subtree = vec![vec![]; self.nodes.len()];
+        let mut prev = vec![None; self.nodes.len()];
+        let mut stack = vec![self.root_idx];
+        let mut arrived = vec![false; self.nodes.len()];
+        let mut current_depth = 0;
+        'dfs: while !stack.is_empty() {
+            let node = *stack.last().unwrap();
+            if !arrived[node] {
+                arrived[node] = true;
+            }
+            for &(idx, label_len, _) in self.nodes[node].children.iter() {
+                if !arrived[idx] {
+                    stack.push(idx);
+                    current_depth += label_len;
+                    continue 'dfs;
+                }
+            }
+            let node = stack.pop().unwrap();
+            depth[node] = current_depth;
+            leaves_under_subtree[node] = if let Some(idx) = self.nodes[node].leaf_label {
+                vec![idx]
+            } else {
+                self.nodes[node]
+                    .children
+                    .iter()
+                    .flat_map(|&(idx, _, _)| leaves_under_subtree[idx].iter())
+                    .copied()
+                    .collect()
+            };
+            prev[node] = match self.nodes[node].leaf_label {
+                Some(idx) if idx == 0 => None,
+                Some(idx) => Some(&input[idx - 1]),
+                None => {
+                    let children = &self.nodes[node].children;
+                    let first = &prev[children[0].0];
+                    if children.iter().any(|&(idx, _, _)| prev[idx].is_none()) {
+                        None
+                    } else if children.iter().any(|&(idx, _, _)| &prev[idx] != first) {
+                        None
+                    } else {
+                        first.clone()
+                    }
+                }
+            };
+            current_depth -= self.nodes[node].label_length_to_parent;
+        }
+        prev.into_iter()
+            .zip(leaves_under_subtree)
+            .zip(depth)
+            .filter(|&((prev, ref lv), _)| prev.is_none() && lv.len() > 1)
+            .map(|((_, lv), depth)| (lv, depth))
+            .collect()
+    }
 }
 
 #[cfg(test)]
@@ -164,6 +221,29 @@ mod test {
             }
             for _ in 0..st.nodes[last].label_length_to_parent {
                 suffix.pop();
+            }
+        }
+    }
+    #[test]
+    fn enumerate_max() {
+        let input = b"CAGTAGCTGACTGATCAGTC";
+        let alphabet = b"ACGT";
+        eprintln!("{}", String::from_utf8_lossy(input));
+        let st = SuffixTree::new(input, alphabet);
+        for (starts, len) in st.maximul_repeat(input) {
+            // Check repetitiveness.
+            let subseq = &input[starts[0]..starts[0] + len];
+            assert!(starts.iter().all(|&s| &input[s..s + len] == subseq));
+            use std::collections::HashSet;
+            // Check left-maximality.
+            if starts.iter().all(|&s| s != 0) {
+                let starts: HashSet<_> = starts.iter().map(|&s| input[s - 1]).collect();
+                assert!(starts.len() > 1);
+            }
+            // Check right-maximality.
+            if starts.iter().all(|&s| s + len < input.len()) {
+                let ends: HashSet<_> = starts.iter().map(|&s| input[s + len]).collect();
+                assert!(ends.len() > 1);
             }
         }
     }

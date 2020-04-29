@@ -123,3 +123,29 @@ fn random_check_suffix_tree() {
         }
     }
 }
+
+#[test]
+fn random_check_maximal_repeat() {
+    for i in 0..2 {
+        let (reference, _queries) = dataset(SEED + i as u64, TEMPLATE_LEN, TEST_NUM, MAX_LEN);
+        use suffix_utils::suffix_tree::SuffixTree;
+        let alphabet: Vec<u8> = (0..=std::u8::MAX).collect();
+        let st = SuffixTree::new(&reference, &alphabet);
+        for (starts, len) in st.maximul_repeat(&reference) {
+            // Check repetitiveness.
+            let subseq = &reference[starts[0]..starts[0] + len];
+            assert!(starts.iter().all(|&s| &reference[s..s + len] == subseq));
+            use std::collections::HashSet;
+            // Check left-maximality.
+            if starts.iter().all(|&s| s != 0) {
+                let starts: HashSet<_> = starts.iter().map(|&s| reference[s - 1]).collect();
+                assert!(starts.len() > 1);
+            }
+            // Check right-maximality.
+            if starts.iter().all(|&s| s + len < reference.len()) {
+                let ends: HashSet<_> = starts.iter().map(|&s| reference[s + len]).collect();
+                assert!(ends.len() > 1);
+            }
+        }
+    }
+}
