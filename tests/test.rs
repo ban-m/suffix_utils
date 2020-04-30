@@ -33,10 +33,9 @@ fn dataset(
     test_max: usize,
 ) -> (Vec<u8>, Vec<Vec<u8>>) {
     let mut rng: Xoroshiro128StarStar = SeedableRng::seed_from_u64(seed);
-    let mut template: Vec<u8> = (0..template_len)
+    let template: Vec<u8> = (0..template_len)
         .map(|_| rng.gen_range(0, std::u8::MAX))
         .collect();
-    template.push(0);
     let tests: Vec<Vec<_>> = (0..test_num)
         .map(|_| {
             let len = rng.gen_range(1, test_max);
@@ -146,6 +145,52 @@ fn random_check_maximal_repeat() {
                 let ends: HashSet<_> = starts.iter().map(|&s| reference[s + len]).collect();
                 assert!(ends.len() > 1);
             }
+        }
+    }
+}
+
+#[test]
+fn random_check_bv() {
+    let mut rng: Xoroshiro128StarStar = SeedableRng::seed_from_u64(12908320);
+    for _ in 0..2 {
+        let bitvec: Vec<_> = (0..100000).map(|_| rng.gen()).collect();
+        let bv = suffix_utils::bitvector::BitVec::new(&bitvec);
+        for (idx, &b) in bitvec.iter().enumerate() {
+            assert_eq!(bv.get(idx), b);
+        }
+        // Rank check
+        for idx in 0..bitvec.len() {
+            // True query.
+            let rank = bitvec[..idx].iter().filter(|&&b| b).count();
+            let rank_bv = bv.rank(true, idx);
+            assert_eq!(rank, rank_bv, "{}\t{}\t{}", idx, rank, rank_bv);
+            // False query
+            let rank = bitvec[..idx].iter().filter(|&&b| !b).count();
+            let rank_bv = bv.rank(false, idx);
+            assert_eq!(rank, rank_bv, "{}\t{}\t{}", idx, rank, rank_bv);
+        }
+        // Check select query.
+        let number_of_true = bitvec.iter().filter(|&&b| b).count();
+        let number_of_false = bitvec.len() - number_of_true;
+        for i in 1..number_of_true {
+            let mut acc = 0;
+            let mut pos = 0;
+            while acc < i {
+                acc += bitvec[pos] as usize;
+                pos += 1;
+            }
+            let pos_bv = bv.select(true, i);
+            assert_eq!(pos_bv, pos - 1, "{}\t{}\t{}", i, pos_bv, pos - 1);
+        }
+        for i in 1..number_of_false {
+            let mut acc = 0;
+            let mut pos = 0;
+            while acc < i {
+                acc += !bitvec[pos] as usize;
+                pos += 1;
+            }
+            let pos_bv = bv.select(false, i);
+            assert_eq!(pos_bv, pos - 1, "{}\t{}\t{}", i, pos_bv, pos - 1);
         }
     }
 }

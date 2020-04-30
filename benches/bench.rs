@@ -76,3 +76,50 @@ fn random_check() {
         assert_eq!(have, sa.search(&reference, &query).is_some());
     }
 }
+
+const BV_LEN: usize = 100_000_000;
+
+#[bench]
+fn random_vb_rank(b: &mut Bencher) {
+    let mut rng: Xoroshiro128Plus = SeedableRng::seed_from_u64(12908320);
+    let bitvec: Vec<_> = (0..BV_LEN).map(|_| rng.gen()).collect();
+    let bv = suffix_utils::bitvector::BitVec::new(&bitvec);
+    for (idx, &b) in bitvec.iter().enumerate() {
+        assert_eq!(bv.get(idx), b);
+    }
+    b.iter(|| test::black_box(bv.rank(true, 12090)));
+}
+
+#[bench]
+fn random_vb_select(b: &mut Bencher) {
+    let mut rng: Xoroshiro128Plus = SeedableRng::seed_from_u64(12908320);
+    let bitvec: Vec<_> = (0..BV_LEN).map(|_| rng.gen()).collect();
+    let bv = suffix_utils::bitvector::BitVec::new(&bitvec);
+    for (idx, &b) in bitvec.iter().enumerate() {
+        assert_eq!(bv.get(idx), b);
+    }
+    b.iter(|| test::black_box(bv.select(true, 1090)));
+}
+
+#[bench]
+fn random_naive_rank(b: &mut Bencher) {
+    let mut rng: Xoroshiro128Plus = SeedableRng::seed_from_u64(12908320);
+    let bitvec: Vec<_> = (0..BV_LEN).map(|_| rng.gen()).collect();
+    b.iter(|| test::black_box(bitvec[..12090].iter().filter(|&&b| b).count()));
+}
+
+#[bench]
+fn random_naive_select(b: &mut Bencher) {
+    let mut rng: Xoroshiro128Plus = SeedableRng::seed_from_u64(12908320);
+    let bitvec: Vec<bool> = (0..BV_LEN).map(|_| rng.gen()).collect();
+    b.iter(|| {
+        let i = 1090;
+        let mut acc = 0;
+        let mut pos = 0;
+        while acc < i {
+            acc += bitvec[pos] as usize;
+            pos += 1;
+        }
+        test::black_box(pos)
+    });
+}
