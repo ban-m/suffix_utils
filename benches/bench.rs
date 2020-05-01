@@ -123,3 +123,29 @@ fn random_naive_select(b: &mut Bencher) {
         test::black_box(pos)
     });
 }
+
+#[bench]
+fn random_fast_rank(b: &mut Bencher) {
+    let mut rng: Xoroshiro128Plus = SeedableRng::seed_from_u64(12908320);
+    let bitvec: Vec<bool> = (0..BV_LEN).map(|_| rng.gen()).collect();
+    let mut rank = vec![];
+    let mut current = 0;
+    for &b in bitvec.iter() {
+        rank.push(current);
+        current += b as usize;
+    }
+    b.iter(|| test::black_box(rank[12090]));
+}
+
+#[bench]
+fn random_fast_select(b: &mut Bencher) {
+    let mut rng: Xoroshiro128Plus = SeedableRng::seed_from_u64(12908320);
+    let bitvec: Vec<bool> = (0..BV_LEN).map(|_| rng.gen()).collect();
+    let mut select = vec![];
+    for (idx, &b) in bitvec.iter().enumerate() {
+        if b {
+            select.push(idx);
+        }
+    }
+    b.iter(|| test::black_box(select[200]));
+}

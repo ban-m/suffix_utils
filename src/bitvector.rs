@@ -1,8 +1,12 @@
 //! BitVector.
+const SELECT_BUCKET: usize = 100;
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
 pub struct BitVec {
     inner: Vec<u64>,
     bucket: Vec<u64>,
+    // select_true[i] = Position of the 100*i-th true.
+    select_true: Vec<usize>,
+    select_false: Vec<usize>,
 }
 
 impl std::convert::AsRef<[u64]> for BitVec {
@@ -33,7 +37,27 @@ impl BitVec {
                 (acc + count, bc)
             },
         );
-        Self { inner, bucket }
+        let (mut select_true, mut select_false) = (vec![0], vec![0]);
+        let (mut pos, mut neg) = (0, 0);
+        for (idx, &b) in xs.iter().enumerate() {
+            if b {
+                pos += 1;
+                if pos % SELECT_BUCKET == 0 {
+                    select_true.push(idx);
+                }
+            } else {
+                neg += 1;
+                if neg % SELECT_BUCKET == 0 {
+                    select_false.push(idx);
+                }
+            }
+        }
+        Self {
+            inner,
+            bucket,
+            select_true,
+            select_false,
+        }
     }
     pub fn rank(&self, x: bool, i: usize) -> usize {
         if x {
@@ -62,7 +86,24 @@ impl BitVec {
                 };
                 count.cmp(&i)
             };
-            let (mut s, mut e) = (0, self.bucket.len() - 1);
+            let chunk = i / SELECT_BUCKET;
+            let (mut s, mut e) = if x {
+                let s = self.select_true[chunk] / 64;
+                let e = if chunk + 1 < self.select_true.len() {
+                    self.select_true[chunk + 1] / 64
+                } else {
+                    self.bucket.len() - 1
+                };
+                (s, e)
+            } else {
+                let s = self.select_false[chunk] / 64;
+                let e = if chunk + 1 < self.select_false.len() {
+                    self.select_false[chunk + 1] / 64
+                } else {
+                    self.bucket.len() - 1
+                };
+                (s, e)
+            };
             use std::cmp::Ordering::*;
             match compare(e) {
                 Less => e,
