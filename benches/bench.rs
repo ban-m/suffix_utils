@@ -13,13 +13,13 @@ fn dataset(
 ) -> (Vec<u8>, Vec<Vec<u8>>) {
     let mut rng: Xoroshiro128Plus = SeedableRng::seed_from_u64(seed);
     let mut template: Vec<u8> = (0..template_len)
-        .map(|_| rng.gen_range(0, std::u8::MAX))
+        .map(|_| rng.gen_range(0..std::u8::MAX))
         .collect();
     template.push(0);
     let tests: Vec<Vec<_>> = (0..test_num)
         .map(|_| {
-            let len = rng.gen_range(1, test_max);
-            (0..len).map(|_| rng.gen_range(0, std::u8::MAX)).collect()
+            let len = rng.gen_range(1..test_max);
+            (0..len).map(|_| rng.gen_range(0..std::u8::MAX)).collect()
         })
         .collect();
     (template, tests)

@@ -4,10 +4,6 @@ extern crate suffix_utils;
 use rand::seq::SliceRandom;
 use rand::{Rng, SeedableRng};
 use rand_xoshiro::Xoroshiro128StarStar;
-#[test]
-fn test_works() {
-    assert!(true);
-}
 
 #[test]
 fn sa_is_works() {
@@ -34,12 +30,12 @@ fn dataset(
 ) -> (Vec<u8>, Vec<Vec<u8>>) {
     let mut rng: Xoroshiro128StarStar = SeedableRng::seed_from_u64(seed);
     let template: Vec<u8> = (0..template_len)
-        .map(|_| rng.gen_range(0, std::u8::MAX))
+        .map(|_| rng.gen_range(0..std::u8::MAX))
         .collect();
     let tests: Vec<Vec<_>> = (0..test_num)
         .map(|_| {
-            let len = rng.gen_range(1, test_max);
-            (0..len).map(|_| rng.gen_range(0, std::u8::MAX)).collect()
+            let len = rng.gen_range(1..test_max);
+            (0..len).map(|_| rng.gen_range(0..std::u8::MAX)).collect()
         })
         .collect();
     (template, tests)

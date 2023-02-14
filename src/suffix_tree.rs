@@ -54,7 +54,7 @@ impl<T: Ord + Clone + Eq + Debug> SuffixTree<T> {
     pub fn new(input: &[T], alphabet: &[T]) -> Self {
         let suffix_array = SuffixArray::new(input, alphabet);
         let inverse_suffix_array = suffix_array.inverse();
-        let lcp = suffix_array::longest_common_prefix(&input, &suffix_array, &inverse_suffix_array);
+        let lcp = suffix_array::longest_common_prefix(input, &suffix_array, &inverse_suffix_array);
         // Insert the root node, draw edge from the root to the first element in SA, as
         // It must be '$', the smallest suffix.
         let alphabet: Vec<(usize, T)> = alphabet.iter().cloned().enumerate().collect();
@@ -65,7 +65,7 @@ impl<T: Ord + Clone + Eq + Debug> SuffixTree<T> {
                     .iter()
                     .filter(|c| &c.1 == x)
                     .map(|c| c.0 as u64 + 1)
-                    .nth(0)
+                    .next()
                     .expect("the input contains character not in the alphabet.")
             })
             .collect();
@@ -162,12 +162,12 @@ impl<T: Ord + Clone + Eq + Debug> SuffixTree<T> {
                 None => {
                     let children = &self.nodes[node].children;
                     let first = &prev[children[0].0];
-                    if children.iter().any(|&(idx, _, _)| prev[idx].is_none()) {
-                        None
-                    } else if children.iter().any(|&(idx, _, _)| &prev[idx] != first) {
+                    if children.iter().any(|&(idx, _, _)| prev[idx].is_none())
+                        || children.iter().any(|&(idx, _, _)| &prev[idx] != first)
+                    {
                         None
                     } else {
-                        first.clone()
+                        *first
                     }
                 }
             };

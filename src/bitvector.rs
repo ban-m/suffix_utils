@@ -20,7 +20,7 @@ impl BitVec {
         let block = index / 64;
         let index = index % 64;
         let probe = 0b1 << index;
-        (self.inner[block] & probe != 0)
+        self.inner[block] & probe != 0
     }
     pub fn new(xs: &[bool]) -> Self {
         let mut inner = vec![0; xs.len() / 64 + 1];
@@ -145,10 +145,6 @@ impl BitVec {
 #[cfg(test)]
 mod test {
     use super::*;
-    #[test]
-    fn works() {
-        assert!(true);
-    }
     #[test]
     fn initialize() {
         let test = vec![true];

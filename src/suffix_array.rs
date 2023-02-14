@@ -3,9 +3,8 @@
 //! Currently, we have only one struct, SuffixArray. It is just an array of usize, i.e., Vec<usize>, associated with the input string Vec<u8>
 //! ,each element of which is the rank of the suffix starting from the index.
 //! For example, assume the return value is SuffixArray sa for the input xs. Then, if sa[12] = 34, the rank of the suffix xs[34..] is 12.
-//! Quite easy, huh?
 use std::cmp::Ord;
-/// A suffix array. The memory footprint is O(nlogn) in theory.
+/// A suffix array. The memory footprint is O(nlogn).
 /// However, for implementation simplicity, we employ `usize` to
 /// record the starting position of a suffix for a given rank.
 /// Thus, `sizeof(usize)*n` memory is needed, where n is the length of the input.
@@ -24,7 +23,7 @@ impl<T: Clone + Ord + Eq> std::convert::AsRef<[usize]> for SuffixArray<T> {
 impl<T: Ord + Clone + Eq> std::ops::Index<usize> for SuffixArray<T> {
     type Output = usize;
     fn index(&self, index: usize) -> &Self::Output {
-        &self.inner.index(index)
+        self.inner.index(index)
     }
 }
 
@@ -72,7 +71,7 @@ impl<T: Clone + Ord + Eq> SuffixArray<T> {
                     .iter()
                     .filter(|c| &c.1 == x)
                     .map(|c| c.0 as u64 + 1)
-                    .nth(0)
+                    .next()
                     .expect("the input contains character not in the alphabet.")
             })
             .collect();
@@ -93,7 +92,7 @@ impl<T: Clone + Ord + Eq> SuffixArray<T> {
                     .iter()
                     .filter(|c| &c.1 == x)
                     .map(|c| c.0 as u64 + 1)
-                    .nth(0)
+                    .next()
                     .expect("the input contains character not in the alphabet.")
             })
             .collect();
@@ -210,7 +209,7 @@ impl<T: Clone + Ord + Eq> SuffixArray<T> {
             for w in lms_position.windows(2) {
                 let &(s1, t1) = &w[0];
                 let &(s2, t2) = &w[1];
-                current_idx += if input[s1..t1] == input[s2..t2] { 0 } else { 1 };
+                current_idx += (input[s1..t1] != input[s2..t2]) as usize;
                 result[s2] = current_idx as u64;
             }
             // The last chatacter is always fastest.
@@ -361,10 +360,6 @@ pub fn longest_common_prefix<T: Ord + Clone + Eq>(
 mod test {
     use super::*;
     #[test]
-    fn works() {
-        assert!(true);
-    }
-    #[test]
     fn naive() {
         let input = b"GTCCCGATGTCATGTCAGGA";
         let alphabet = b"ACGT";
@@ -450,27 +445,6 @@ mod test {
         let mut res = result.enumerate_matches(input, query).unwrap().to_vec();
         res.sort();
         assert_eq!(res, vec![0, 1, 2, 3, 4, 5, 6]);
-    }
-    /// Return LCP array in O(n).
-    pub fn longest_common_prefix<T: Ord + Clone + Eq>(
-        input: &[T],
-        sa: &SuffixArray<T>,
-        isa: &[usize],
-    ) -> Vec<usize> {
-        // Fill longest common prefix from input[0] to input.last().
-        // lcp[i] = longest common prefix between input[sa[i]..] and input[sa[i-1]..]
-        let mut lcp = vec![0; sa.as_ref().len()];
-        let mut l = 0;
-        for i in 0..input.len() {
-            let x = &input[i..];
-            let y = &input[sa[isa[i] - 1]..];
-            while l < x.len().min(y.len()) && x[l] == y[l] {
-                l += 1;
-            }
-            lcp[isa[i]] = l;
-            l = l.max(1) - 1;
-        }
-        lcp
     }
     #[test]
     fn lcp_check() {

@@ -2,6 +2,7 @@
 extern crate serde;
 extern crate num;
 pub mod bitvector;
+pub mod range_minimum_query;
 pub mod suffix_array;
 pub mod suffix_tree;
 #[cfg(test)]
