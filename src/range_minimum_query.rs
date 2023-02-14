@@ -2,8 +2,8 @@
 
 use std::fmt::Debug;
 #[derive(Debug, Clone)]
-pub struct LinearRangeMinimumQuery<'a, T: Ord + Copy + Clone + Debug> {
-    data: &'a [T],
+pub struct LinearRangeMinimumQuery<T: Ord + Eq + Copy + Clone + Debug> {
+    data: Vec<T>,
     large_blocks: SparseTableRangeMinimumQuery<T>,
     small_blocks: Vec<BitTable>,
     bucket_size: usize,
@@ -13,8 +13,9 @@ pub trait RangeMinimumQuery {
     fn min(&self, start: usize, end: usize) -> usize;
 }
 
-impl<'a, T: Ord + Copy + Clone + Debug> RangeMinimumQuery for LinearRangeMinimumQuery<'a, T> {
+impl<T: Ord + Eq + Copy + Clone + Debug> RangeMinimumQuery for LinearRangeMinimumQuery<T> {
     fn min(&self, start: usize, end: usize) -> usize {
+        assert!(start < end);
         let start_bucket_idx = start / self.bucket_size;
         let end_bucket_idx = end / self.bucket_size - (end % self.bucket_size == 0) as usize;
         if start_bucket_idx == end_bucket_idx {
@@ -62,7 +63,7 @@ impl<'a, T: Ord + Copy + Clone + Debug> RangeMinimumQuery for LinearRangeMinimum
 
 // We fix the size of the bucket to 64 (for efficient bitvector allocations).
 // Usually, it does not harm the performance(?)
-impl<'a, T: Ord + Copy + Clone + Debug> LinearRangeMinimumQuery<'a, T> {
+impl<'a, T: Ord + Eq + Copy + Clone + Debug> LinearRangeMinimumQuery<T> {
     pub fn new(input: &'a [T]) -> Self {
         let bucket_size = 64;
         let bucket_num = input.len() / bucket_size + 1;
@@ -79,7 +80,7 @@ impl<'a, T: Ord + Copy + Clone + Debug> LinearRangeMinimumQuery<'a, T> {
             .map(|bucket| BitTable::new(bucket))
             .collect();
         Self {
-            data: input,
+            data: input.to_vec(),
             large_blocks,
             small_blocks,
             bucket_size,
@@ -88,12 +89,12 @@ impl<'a, T: Ord + Copy + Clone + Debug> LinearRangeMinimumQuery<'a, T> {
 }
 
 #[derive(Debug, Clone)]
-pub struct SparseTableRangeMinimumQuery<T: Ord + Copy + Clone + Debug> {
+pub struct SparseTableRangeMinimumQuery<T: Ord + Eq + Copy + Clone + Debug> {
     data: Vec<T>,
     table: Vec<Vec<usize>>,
 }
 
-impl<T: Ord + Copy + Clone + Debug> RangeMinimumQuery for SparseTableRangeMinimumQuery<T> {
+impl<T: Ord + Eq + Copy + Clone + Debug> RangeMinimumQuery for SparseTableRangeMinimumQuery<T> {
     fn min(&self, start: usize, end: usize) -> usize {
         assert!(start < end);
         let diff = (64 - ((end - start) as u64).leading_zeros()) as usize - 1;
@@ -107,7 +108,7 @@ impl<T: Ord + Copy + Clone + Debug> RangeMinimumQuery for SparseTableRangeMinimu
     }
 }
 
-impl<T: Ord + Copy + Clone + Debug> SparseTableRangeMinimumQuery<T> {
+impl<T: Ord + Eq + Copy + Clone + Debug> SparseTableRangeMinimumQuery<T> {
     pub fn new(input: &[T]) -> Self {
         let len = input.len() as u64;
         let msb = (64 - len.leading_zeros()) as usize - 1;
@@ -147,14 +148,16 @@ impl RangeMinimumQuery for BitTable {
 }
 
 impl BitTable {
-    pub fn new<T: Ord + Copy + Clone + Debug>(input: &[T]) -> Self {
+    pub fn new<T: Ord + Eq + Copy + Clone + Debug>(input: &[T]) -> Self {
         let nearest_leq: Vec<Option<usize>> = get_nearest_smaller_or_equal(input);
         let recorded_rmq = get_recorded_bits(&nearest_leq);
         Self { recorded_rmq }
     }
 }
 
-fn get_nearest_smaller_or_equal<T: Ord + Copy + Clone + Debug>(input: &[T]) -> Vec<Option<usize>> {
+fn get_nearest_smaller_or_equal<T: Ord + Eq + Copy + Clone + Debug>(
+    input: &[T],
+) -> Vec<Option<usize>> {
     assert!(input.len() <= 64);
     let mut stack = vec![];
     let mut nearest_smaller = vec![];
